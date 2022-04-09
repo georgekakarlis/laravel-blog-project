@@ -2,25 +2,49 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
-class Post
+class Post extends Model
 {
-    public static function all()
+    use HasFactory;
+
+    protected $with = ['category', 'author'];
+
+    public function scopeFilter($query, array $filters)
     {
-        $files = File::files(resource_path("posts/"));
+        $query->when($filters['search'] ?? false, fn($query, $search) =>
+        $query->where(fn($query) =>
+        $query->where('title', 'like', '%' . $search . '%')
+            ->orWhere('body', 'like', '%' . $search . '%')
+        )
+        );
 
-        return array_map(fn($file) => $file->getContents(), $files);
+        $query->when($filters['category'] ?? false, fn($query, $category) =>
+        $query->whereHas('category', fn ($query) =>
+        $query->where('slug', $category)
+        )
+        );
 
+        $query->when($filters['author'] ?? false, fn($query, $author) =>
+        $query->whereHas('author', fn ($query) =>
+        $query->where('username', $author)
+        )
+        );
     }
-  public static function find($slug)
-{
 
-     if (! file_exists($path = resource_path("/posts/{$slug}.html"))) {
-      throw new ModelNotFoundException();
-     }
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
 
-     return cache()->remember("posts.{$slug}", 1200, fn() => file_get_contents($path));
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
 
-}
+    public function author()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }
